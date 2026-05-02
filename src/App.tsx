@@ -56,7 +56,8 @@ export default function App() {
   const isSummary = currentIndex === courseData.length;
   const currentItem = isSummary ? null : courseData[currentIndex];
   const isQuiz = currentItem?.type === 'quiz';
-  // Allow next if it's a slide, or if it's a passed quiz
+  const isSimulation = currentItem?.type === 'simulation';
+  // Allow next if it's a slide/simulation, or if it's a passed quiz
   const canGoNext = isSummary ? false : (!isQuiz || currentIndex in quizAnswers);
 
   // Auto-scroll to top when step changes
@@ -208,6 +209,8 @@ export default function App() {
                   answer={quizAnswers[currentIndex]}
                   onAnswer={handleAnswerQuiz}
                 />
+              ) : isSimulation && currentItem ? (
+                <SimulationView data={currentItem} />
               ) : currentItem ? (
                 <SlideView data={currentItem} />
               ) : null}
@@ -276,6 +279,13 @@ function SlideView({ data }: { data: CourseItem }) {
         <div className="w-2 h-8 bg-[#346EE0] mr-4 rounded-sm"></div>
         {data.title}
       </h2>
+      
+      {data.imageUrl && (
+        <div className="mb-8 rounded-xl overflow-hidden border border-[#232836] bg-[#0A0C10] shadow-md flex justify-center p-4">
+          <img src={data.imageUrl} alt={data.title} className="max-h-[300px] object-contain w-full" />
+        </div>
+      )}
+
       <div
         className="slide-content text-slate-300 font-sans"
         dangerouslySetInnerHTML={{ __html: data.content || '' }}
@@ -426,6 +436,93 @@ function SummaryView({ courseData, quizAnswers }: { courseData: CourseItem[], qu
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function SimulationView({ data }: { data: CourseItem }) {
+  const [flow, setFlow] = useState(120);
+  const [pressure, setPressure] = useState(60);
+  const [humidity, setHumidity] = useState(40);
+
+  // Logic for Sensor Fusion
+  let status = "System Normal";
+  let statusColor = "text-[#10B981]";
+  let bgColor = "bg-[#10B981]/10 border-[#10B981]/30";
+
+  const isFlowLow = flow < 90;
+  const isPressureLow = pressure < 45;
+  const isHumidityHigh = humidity > 80;
+
+  if (isFlowLow && isPressureLow && isHumidityHigh) {
+    status = "CRITICAL LEAK CONFIRMED. Executing automatic shutdown.";
+    statusColor = "text-red-500";
+    bgColor = "bg-red-500/10 border-red-500/30";
+  } else if (isHumidityHigh && !isFlowLow && !isPressureLow) {
+    status = "Condensation suspected. Verified dew point mismatch. No leak.";
+    statusColor = "text-[#FBBF24]";
+    bgColor = "bg-[#FBBF24]/10 border-[#FBBF24]/30";
+  } else if (isFlowLow && !isPressureLow) {
+    status = "Warning: Flow rate degradation detected. Possible filter occlusion.";
+    statusColor = "text-[#FBBF24]";
+    bgColor = "bg-[#FBBF24]/10 border-[#FBBF24]/30";
+  } else if (!isFlowLow && isPressureLow) {
+    status = "Warning: Pressure loss detected without flow drop. Validate pump integrity.";
+    statusColor = "text-[#FBBF24]";
+    bgColor = "bg-[#FBBF24]/10 border-[#FBBF24]/30";
+  } else if (isFlowLow && isPressureLow) {
+    status = "Warning: Flow and Pressure degraded. Monitoring for moisture (Leak possible).";
+    statusColor = "text-orange-500";
+    bgColor = "bg-orange-500/10 border-orange-500/30";
+  }
+
+  return (
+    <div className="w-full">
+      <h2 className="text-2xl md:text-3xl text-slate-100 mb-6 font-black font-display tracking-tight flex items-center">
+        <div className="w-2 h-8 bg-[#8B5CF6] mr-4 rounded-sm"></div>
+        {data.title}
+      </h2>
+      <div className="text-slate-300 font-sans mb-8" dangerouslySetInnerHTML={{ __html: data.content || '' }} />
+      
+      <div className="bg-[#0A0C10] border border-[#232836] p-6 rounded-xl space-y-8">
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-sm font-semibold text-slate-400">Flow Rate (LPM)</label>
+            <span className="font-mono text-[#86ACF6]">{flow} LPM</span>
+          </div>
+          <input 
+            type="range" min="50" max="150" value={flow} onChange={e => setFlow(parseInt(e.target.value))}
+            className="w-full h-2 bg-[#18243E] rounded-lg appearance-none cursor-pointer accent-[#346EE0]"
+          />
+        </div>
+
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-sm font-semibold text-slate-400">Pressure (PSI)</label>
+            <span className="font-mono text-[#86ACF6]">{pressure} PSI</span>
+          </div>
+          <input 
+            type="range" min="20" max="80" value={pressure} onChange={e => setPressure(parseInt(e.target.value))}
+            className="w-full h-2 bg-[#18243E] rounded-lg appearance-none cursor-pointer accent-[#346EE0]"
+          />
+        </div>
+
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-sm font-semibold text-slate-400">Sub-floor Humidity (%)</label>
+            <span className="font-mono text-[#86ACF6]">{humidity}%</span>
+          </div>
+          <input 
+            type="range" min="20" max="100" value={humidity} onChange={e => setHumidity(parseInt(e.target.value))}
+            className="w-full h-2 bg-[#18243E] rounded-lg appearance-none cursor-pointer accent-[#346EE0]"
+          />
+        </div>
+
+        <div className={`mt-8 p-4 rounded-md border ${bgColor} transition-colors duration-300`}>
+          <div className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-1">AI Telemetry Assessment</div>
+          <div className={`font-bold font-mono text-lg ${statusColor}`}>{status}</div>
+        </div>
+      </div>
     </div>
   );
 }
