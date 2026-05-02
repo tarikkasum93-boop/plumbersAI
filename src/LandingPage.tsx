@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { BookOpen, CheckCircle, Loader2 } from 'lucide-react';
+import { supabase } from './lib/supabaseClient';
 
 interface LandingPageProps {
   onRegister: () => void;
@@ -27,9 +28,6 @@ export function LandingPage({ onRegister }: LandingPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Replace this with the deployed Google Apps Script Webhook URL
-  const WEBHOOK_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEBHOOK_URL_HERE'; 
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
       ...prev,
@@ -42,25 +40,33 @@ export function LandingPage({ onRegister }: LandingPageProps) {
     setIsLoading(true);
     setError(null);
 
-    // If you haven't deployed the script yet, you can bypass the check by un-commenting the following two lines:
-    // onRegister();
-    // return;
+    // Ensure environmental variables are configured
+    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      console.warn("Supabase credentials missing. Mocking success for preview purposes.");
+      setTimeout(() => {
+        onRegister();
+      }, 1000);
+      return;
+    }
 
     try {
-      const response = await fetch(WEBHOOK_URL, {
-        method: 'POST',
-        mode: 'no-cors', // Critical for sending data to Google Apps Script successfully from frontend
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
-      });
+      const { error: supabaseError } = await supabase
+        .from('registrations')
+        .insert([
+          {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email,
+            raion_url: formData.raionUrl
+          }
+        ]);
+
+      if (supabaseError) throw supabaseError;
       
-      // With no-cors, we can't read the response properly, so we assume success if no error is thrown
       onRegister();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('An error occurred while submitting the form. Please try again.');
+      setError(err.message || 'An error occurred while submitting the form. Please try again.');
       setIsLoading(false);
     }
   };

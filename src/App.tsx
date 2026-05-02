@@ -19,7 +19,7 @@ const RaionBrand = ({ className = "" }: { className?: string }) => (
 
 export default function App() {
   const [isRegistered, setIsRegistered] = useState(() => {
-    return localStorage.getItem('raion-academy-registered') === 'true';
+    return localStorage.getItem('ai-plumber-registered') === 'true';
   });
 
   const [unit, setUnit] = useState<'UK' | 'US'>(() => {
@@ -51,7 +51,7 @@ export default function App() {
 
   useEffect(() => {
     if (isRegistered) {
-      localStorage.setItem('raion-academy-registered', 'true');
+      localStorage.setItem('ai-plumber-registered', 'true');
     }
   }, [isRegistered]);
 
