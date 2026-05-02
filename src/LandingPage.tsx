@@ -41,7 +41,7 @@ export function LandingPage({ onRegister }: LandingPageProps) {
     setError(null);
 
     // Ensure environmental variables are configured
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    if (!supabase || !import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
       console.warn("Supabase credentials missing. Mocking success for preview purposes.");
       setTimeout(() => {
         onRegister();
@@ -51,6 +51,7 @@ export function LandingPage({ onRegister }: LandingPageProps) {
 
     try {
       const { error: supabaseError } = await supabase
+
         .from('registrations')
         .insert([
           {
