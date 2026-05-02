@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, ArrowRight, CheckCircle, Menu, X, Award, BarChart3, TrendingUp } from 'lucide-react';
-import { getCourseData, CourseItem } from './data';
+import { ArrowLeft, ArrowRight, CheckCircle, Menu, X, Award, BarChart3, TrendingUp, BookOpen, Search } from 'lucide-react';
+import parse, { HTMLReactParserOptions, Element, attributesToProps, domToReact } from 'html-react-parser';
+import { getCourseData, CourseItem, glossaryData, GlossaryTerm } from './data';
+
+import { LandingPage } from './LandingPage';
 
 const RaionBrand = ({ className = "" }: { className?: string }) => (
   <div className={`flex flex-col items-center ${className}`}>
@@ -15,6 +18,10 @@ const RaionBrand = ({ className = "" }: { className?: string }) => (
 );
 
 export default function App() {
+  const [isRegistered, setIsRegistered] = useState(() => {
+    return localStorage.getItem('raion-academy-registered') === 'true';
+  });
+
   const [unit, setUnit] = useState<'UK' | 'US'>(() => {
     const saved = localStorage.getItem('ai-plumber-unit');
     return (saved as 'UK' | 'US') || 'UK';
@@ -38,7 +45,15 @@ export default function App() {
   });
   
   const [showSidebar, setShowSidebar] = useState(false);
+  const [glossaryTerm, setGlossaryTerm] = useState<string | null>(null);
+  const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
   const mainAreaRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isRegistered) {
+      localStorage.setItem('raion-academy-registered', 'true');
+    }
+  }, [isRegistered]);
 
   useEffect(() => {
     localStorage.setItem('ai-plumber-unit', unit);
@@ -86,12 +101,27 @@ export default function App() {
     }));
   };
 
+  const openGlossaryForTerm = (term: string) => {
+    setGlossaryTerm(term);
+    setIsGlossaryOpen(true);
+  };
+
+  if (!isRegistered) {
+    return <LandingPage onRegister={() => setIsRegistered(true)} />;
+  }
+
   return (
     <div className="flex h-screen w-full flex-col md:flex-row bg-[#0B0D12] text-slate-300 font-sans overflow-hidden">
       {/* Mobile Top Bar */}
       <div className="md:hidden flex items-center justify-between p-4 bg-[#0A0C10] border-b border-[#232836] shrink-0">
         <RaionBrand className="scale-75 origin-left" />
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setGlossaryTerm(null); setIsGlossaryOpen(true); }}
+            className="p-2 bg-[#141A29] rounded-md text-[#86ACF6] hover:bg-[#1C2333] transition-colors"
+          >
+            <BookOpen size={18} />
+          </button>
           <UnitToggle unit={unit} setUnit={setUnit} />
           <button
             onClick={() => setShowSidebar(true)}
@@ -188,6 +218,12 @@ export default function App() {
       >
         {/* Desktop Top Bar */}
         <div className="hidden md:flex justify-end items-center p-6 w-full max-w-4xl mx-auto pb-0 gap-4">
+          <button
+            onClick={() => { setGlossaryTerm(null); setIsGlossaryOpen(true); }}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold tracking-wider rounded-sm transition-all text-slate-500 hover:text-slate-300 hover:bg-[#141A29] border border-[#232836] bg-[#0A0C10]"
+          >
+            <BookOpen size={14} /> GLOSSARY
+          </button>
           <UnitToggle unit={unit} setUnit={setUnit} />
         </div>
 
@@ -212,7 +248,7 @@ export default function App() {
               ) : isSimulation && currentItem ? (
                 <SimulationView data={currentItem} />
               ) : currentItem ? (
-                <SlideView data={currentItem} />
+                <SlideView data={currentItem} onTermClick={openGlossaryForTerm} />
               ) : null}
             </motion.div>
           </AnimatePresence>
@@ -241,9 +277,17 @@ export default function App() {
           </div>
         </div>
       </div>
+      
+      {/* Glossary Modal */}
+      <GlossaryModal 
+        isOpen={isGlossaryOpen} 
+        onClose={() => setIsGlossaryOpen(false)} 
+        initialTerm={glossaryTerm} 
+      />
     </div>
   );
 }
+
 
 function UnitToggle({ unit, setUnit }: { unit: 'UK' | 'US', setUnit: (v: 'UK' | 'US') => void }) {
   return (
@@ -272,7 +316,54 @@ function UnitToggle({ unit, setUnit }: { unit: 'UK' | 'US', setUnit: (v: 'UK' | 
   )
 }
 
-function SlideView({ data }: { data: CourseItem }) {
+function SlideView({ data, onTermClick }: { data: CourseItem, onTermClick: (term: string) => void }) {
+  // Parse HTML string to inject clickable spans around glossary terms
+  const parsedContent = useMemo(() => {
+    let html = data.content || '';
+    if (!html) return html;
+    
+    // Sort terms by length descending to prevent partial matches replacing sub-strings of longer terms
+    const sortedTerms = [...glossaryData].sort((a, b) => b.term.length - a.term.length);
+    
+    sortedTerms.forEach(item => {
+      // We only want to replace text outside of HTML tags.
+      // Split by HTML tags
+      const parts = html.split(/(<[^>]+>)/g);
+      for (let i = 0; i < parts.length; i++) {
+        // Text nodes are those not starting with '<'
+        if (!parts[i].startsWith('<')) {
+          // Use regex to find whole words, case-insensitive
+          const regex = new RegExp(`\\b(${item.term})\\b`, 'gi');
+          parts[i] = parts[i].replace(regex, `<span class="glossary-term cursor-help border-b border-dashed border-[#86ACF6] text-[#86ACF6] hover:bg-[#86ACF6]/10 transition-colors" data-term="${item.term}">$1</span>`);
+        }
+      }
+      html = parts.join('');
+    });
+    
+    return html;
+  }, [data.content]);
+
+  const parseOptions: HTMLReactParserOptions = {
+    replace: (domNode) => {
+      if (domNode instanceof Element && domNode.attribs && domNode.attribs.class?.includes('glossary-term')) {
+        const props = attributesToProps(domNode.attribs);
+        return (
+          <span 
+            {...props} 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const term = domNode.attribs['data-term'];
+              if (term) onTermClick(term);
+            }}
+          >
+            {domToReact(domNode.children as any[], parseOptions)}
+          </span>
+        );
+      }
+    }
+  };
+
   return (
     <div className="w-full">
       <h2 className="text-2xl md:text-3xl text-slate-100 mb-8 font-black font-display tracking-tight flex items-center">
@@ -286,11 +377,89 @@ function SlideView({ data }: { data: CourseItem }) {
         </div>
       )}
 
-      <div
-        className="slide-content text-slate-300 font-sans"
-        dangerouslySetInnerHTML={{ __html: data.content || '' }}
-      />
+      <div className="slide-content text-slate-300 font-sans">
+        {parse(parsedContent, parseOptions)}
+      </div>
     </div>
+  );
+}
+
+function GlossaryModal({ isOpen, onClose, initialTerm }: { isOpen: boolean, onClose: () => void, initialTerm: string | null }) {
+  const [search, setSearch] = useState('');
+  
+  // When opened with a term, auto-search for it
+  useEffect(() => {
+    if (isOpen) {
+      if (initialTerm) {
+        setSearch(initialTerm);
+      } else {
+        setSearch('');
+      }
+    }
+  }, [isOpen, initialTerm]);
+
+  if (!isOpen) return null;
+
+  const filteredTerms = glossaryData.filter(t => 
+    t.term.toLowerCase().includes(search.toLowerCase()) || 
+    t.definition.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ y: 20, scale: 0.95 }}
+          animate={{ y: 0, scale: 1 }}
+          exit={{ y: 20, scale: 0.95 }}
+          className="bg-[#0A0C10] border border-[#232836] w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[85vh]"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between p-5 border-b border-[#232836] shrink-0">
+            <h3 className="text-xl font-display font-bold text-slate-100 flex items-center gap-2">
+              <BookOpen size={20} className="text-[#86ACF6]" /> Technical Glossary
+            </h3>
+            <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-[#141A29]">
+              <X size={20} />
+            </button>
+          </div>
+          
+          <div className="p-5 border-b border-[#232836] shrink-0">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+              <input 
+                type="text"
+                placeholder="Search definitions..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full bg-[#141A29] border border-[#232836] rounded-md py-2.5 pl-10 pr-4 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-[#346EE0] focus:ring-1 focus:ring-[#346EE0] transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            {filteredTerms.length > 0 ? (
+              filteredTerms.map((item, idx) => (
+                <div key={idx} className="p-4 rounded-lg border border-[#232836] bg-[#14171F]">
+                  <h4 className="text-lg font-bold text-[#86ACF6] mb-2">{item.term}</h4>
+                  <p className="text-slate-300 leading-relaxed text-sm">{item.definition}</p>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-10 text-slate-500">
+                No terms matched your search.
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
@@ -482,7 +651,9 @@ function SimulationView({ data }: { data: CourseItem }) {
         <div className="w-2 h-8 bg-[#8B5CF6] mr-4 rounded-sm"></div>
         {data.title}
       </h2>
-      <div className="text-slate-300 font-sans mb-8" dangerouslySetInnerHTML={{ __html: data.content || '' }} />
+      <div className="text-slate-300 font-sans mb-8">
+        {parse(data.content || '')}
+      </div>
       
       <div className="bg-[#0A0C10] border border-[#232836] p-6 rounded-xl space-y-8">
         <div>
