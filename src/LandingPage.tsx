@@ -179,11 +179,11 @@ export function LandingPage({ onRegister }: LandingPageProps) {
           <div className="mt-8 pt-6 border-t border-[#232836] flex flex-col gap-3">
             <div className="flex items-start gap-3">
               <CheckCircle size={16} className="text-[#346EE0] shrink-0 mt-0.5" />
-              <p className="text-xs text-slate-400">Exclusive access to advanced liquid cooling topologies and predictive maintenance protocols.</p>
+              <p className="text-xs text-slate-400">Master advanced liquid cooling solutions.</p>
             </div>
             <div className="flex items-start gap-3">
               <CheckCircle size={16} className="text-[#346EE0] shrink-0 mt-0.5" />
-              <p className="text-xs text-slate-400">Interactive simulations and real-world telemetry analysis exercises.</p>
+              <p className="text-xs text-slate-400">Learn through interactive simulations.</p>
             </div>
           </div>
         </div>
